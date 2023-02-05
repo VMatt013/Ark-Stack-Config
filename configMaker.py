@@ -1,6 +1,8 @@
 import tkinter as tk
+import os
 from tkinter import TclError, ttk
 from tkinter.messagebox import showerror, showwarning, showinfo
+
 
 itemID = [
     ("PrimalItemConsumable_RawPrimeMeat","Raw Prime Meat"),
@@ -10,7 +12,7 @@ itemID = [
     ("PrimalItemConsumable_RawMutton","Raw Mutton"),
     ("PrimalItemConsumable_CookedLambChop","Cooked Lamb Chop"),
     ("PrimalItemConsumable_Honey","Giant Bee Honey"),
-    ("PrimalItemResource_Sap","Sap")
+    ("PrimalItemResource_Sap","Sap"),
 ]
 
 def ResetStacks(isBaseStack,isInvidStack):
@@ -98,31 +100,87 @@ def createMainFrame(container):
     return Frame
 
 def createFrameInvidItems(container):
-    global itemID,Items
-    Frame = tk.Frame(container)
+    global itemID,Items,scrollable_frame
+    Frame = ttk.Frame(container)
     Frame['borderwidth'] = 5
     Frame['relief'] = 'sunken'
-    Frame.columnconfigure(0, weight=1)
+    Frame.columnconfigure(0, weight=99)
+    Frame.columnconfigure(1, weight=1)
 
-    Items = []
-    for i,itemName in enumerate(itemID):
-        Items.append(tk.BooleanVar(value=True))
-        checkItem = ttk.Checkbutton(Frame,text=itemName[1],onvalue=True,offvalue=False,variable=Items[i])
+    canvas = tk.Canvas(Frame)
+    scrollbar = tk.Scrollbar(Frame, orient="vertical", command=canvas.yview,)
+    scrollable_frame = ttk.Frame(canvas)
+
+    scrollable_frame.bind(
+    "<Configure>",
+    lambda e: canvas.configure(
+        scrollregion=canvas.bbox("all")
+    )
+)
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    Items = refreshInvidItems()
+
+    canvas.grid(columnspan=2)
+    scrollbar.grid(column=1,row=0,sticky=tk.NS,padx=0,pady=0)
+
+    newEntryFrame = tk.Frame(Frame)
+    newEntryFrame.grid(column=0)
+
+    buttonCreate = tk.Button(newEntryFrame,text="Create",width=10,height=1,bd=3,bg="grey85",fg="black",command=lambda: (addNewEntry(entryID.get(),entryName.get()),refreshInvidItems(),newEntryFrame.grid_remove(),buttonNewEntry.grid(),Frame.focus_set()))
+    buttonCreate.grid(column=2,row=0,padx=5, pady=5)
+
+    buttonCancel = tk.Button(newEntryFrame,bg="red",text="X",bd=3,height=1,command=lambda:(print("Canceled"), newEntryFrame.grid_remove(),buttonNewEntry.grid(),Frame.focus_set(),  ))
+    buttonCancel.grid(column=3,row=0,padx=0, pady=0)
     
-    for widget in Frame.winfo_children():
+    entryID = tk.Entry(newEntryFrame,fg="black", bg="grey80", width=20,textvariable = tk.StringVar(value="Item ID"))
+    entryID.grid(column=0,row=0,pady=5,sticky=tk.E)
+    
+
+    entryName = tk.Entry(newEntryFrame,fg="black", bg="grey80", width=20,textvariable = tk.StringVar(value="Item Name"))
+    entryName.grid(column=1,row=0,pady=5,sticky=tk.E)
+
+    newEntryFrame.grid_remove()
+
+    buttonNewEntry = tk.Button(Frame,text="New Entry",width=10,height=1,bd=3,bg="grey85",fg="black",command= lambda: (buttonNewEntry.grid_remove(),  newEntryFrame.grid(), setEntryValue(entryID,"Item ID"),setEntryValue(entryName,"Item Name"),entryID.focus_set() ))
+    buttonNewEntry.grid(columnspan=2,padx=5, pady=5)
+    
+    return Frame
+
+def refreshInvidItems():
+    global Items,scrollable_frame
+    Items = []
+
+    for widget in scrollable_frame.winfo_children():
+        widget.destroy()
+
+    with open("configMakerFile","w") as File:
+        for i,item in enumerate(itemID):
+            File.write(f"{item[0]} --- {item[1]}\n")
+            Items.append(tk.BooleanVar(value=True))
+            Frame = ttk.Frame(scrollable_frame,height=1)
+            checkItem = ttk.Checkbutton(Frame,text=item[1],width=48,onvalue=True,offvalue=False,variable=Items[i])
+            checkItem.grid(column=0,row=0,padx=5, pady=5,sticky=tk.E)
+            buttonDelete = tk.Button(Frame,bg="red",text="X",bd=3,height=1,command= lambda item=item: deleteEntry(item))
+            buttonDelete.grid(column=1,row=0,padx=5, pady=5,sticky=tk.E)
+
+    
+     
+    for widget in scrollable_frame.winfo_children():
         widget.grid(padx=5, pady=5,sticky=tk.W)
 
-    return Frame
+
+    return Items
+
 
 def createWindow():
     root = tk.Tk()
-    root.geometry("600x300")
     root.title('Ark Stack Config')
     root.resizable(0, 0)
     root.columnconfigure(0, weight=2)
-    root.columnconfigure(1, weight=1)
-
-   
+    root.columnconfigure(1, weight=1)  
 
     MainFrame = createMainFrame(root)
     MainFrame.grid(column=0,row=0,sticky=tk.NS)
@@ -132,6 +190,29 @@ def createWindow():
 
     root.mainloop()
 
+def addNewEntry(ID,Name):
+    global itemID
+    itemID.append((ID,Name))
+
+def setEntryValue(entry,text):
+    entry.delete(0,tk.END)
+    entry.insert(0,text)
+
+def deleteEntry(entry):
+    global itemID
+    itemID.remove(entry)
+    refreshInvidItems()
+
+def checkForFile():
+    global itemID
+    if os.path.isfile("configMakerFile"):
+        with open("configMakerFile",'r') as File:
+            itemID = []
+            for line in File:
+                a,b = line.split(' --- ')
+                itemID.append((a.strip(),b.strip()))
+    print(f"Items: {itemID}")
 
 if __name__ == "__main__":
+    checkForFile()
     createWindow()
